@@ -13,8 +13,8 @@
 #define VEXT_PIN 36
 
 // Configurazione FFT
-#define SAMPLES 128             // Numero di campioni (deve essere potenza di 2)
-#define SAMPLING_FREQUENCY 100  // Frequenza di campionamento in Hz
+#define SAMPLES 128             // Numero di campioni
+#define MAX_SAMPLING_FREQ 1000  // Frequenza di campionamento massima
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 
@@ -23,10 +23,9 @@ volatile int sharedRawVal = 2048; // Variabile condivisa tra i task
 double vReal[SAMPLES];
 double vImag[SAMPLES];
 volatile bool newDataReady = false; // Flag per indicare che nuovi dati sono pronti per l'FFT
-volatile float currentSamplingFrequency = SAMPLING_FREQUENCY;
+volatile float currentSamplingFrequency = MAX_SAMPLING_FREQ;
 
-// Dichiarazione corretta per arduinoFFT v2.x
-ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, SAMPLES, SAMPLING_FREQUENCY);
+ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, SAMPLES, MAX_SAMPLING_FREQ);
 
 // TASKS
 void TaskSampling(void *pvParameters);
@@ -41,7 +40,7 @@ void setup() {
   // 1. Alimentazione Display
   pinMode(VEXT_PIN, OUTPUT);
   digitalWrite(VEXT_PIN, LOW); 
-  delay(500); // Mezzo secondo di attesa alimentazione
+  delay(500);
 
   // 3. Inizializzazione I2C con velocità standard (100kHz)
   Wire.begin(OLED_SDA, OLED_SCL);
@@ -59,31 +58,31 @@ void setup() {
   
   xTaskCreatePinnedToCore(
     TaskSampling,   // Funzione che legge l'ADC
-    "Sampling",     // Nome
-    4096,           // Stack size
-    NULL,           // Parametri
-    3,              // Priorità alta (fondamentale per precisione temporale)
-    NULL,           // Handle
+    "Sampling",
+    4096,
+    NULL,
+    3,              // Priorità alta
+    NULL,           
     1               // Core 1
   );
 
   xTaskCreatePinnedToCore(
     TaskDisplay,    // Funzione che disegna
-    "Display",      // Nome
-    4092,           // Stack size (più grande per GFX)
-    NULL,           // Parametri
+    "Display",
+    4092,
+    NULL,
     1,              // Priorità bassa
-    NULL,           // Handle
-    0               // Core 0 (lasciamo il core 0 per WiFi/BT e grafica)
+    NULL,           
+    0               // Core 0
   );
 
   xTaskCreatePinnedToCore(
     TaskFFT,        // Funzione che esegue FFT
-    "FFT",          // Nome
-    8192,           // Stack size
-    NULL,           // Parametri
+    "FFT",
+    8192,
+    NULL,
     2,              // Priorità media (tra sampling e display)
-    NULL,           // Handle
+    NULL,
     1               // Core 1
   );
 }
@@ -93,26 +92,26 @@ void loop() {
   // Il loop rimane vuoto in FreeRTOS
 }
 
-// --- TASK 1: CAMPIONAMENTO PRECISO ---
+// --- TASK 1: CAMPIONAMENTO ---
 void TaskSampling(void *pvParameters) {
   TickType_t xLastWakeTime = xTaskGetTickCount();
   int sampleIndex = 0;
 
   for (;;) {
+
     // Leggi il segnale
     sharedRawVal = analogRead(sensorPin);
     
     if(!newDataReady) {
       vReal[sampleIndex] = (double)sharedRawVal;
-      vImag[sampleIndex] = 0.0; // FFT complessa, parte immaginaria a zero
+      vImag[sampleIndex] = 0.0;
       sampleIndex++;
       
       if (sampleIndex >= SAMPLES) {
         sampleIndex = 0;
-        newDataReady = true; // Segnala che i dati sono pronti per l'FFT
+        newDataReady = true;
       }
     }
-    // Attendi esattamente il prossimo ciclo
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS((int)(1000.0 / currentSamplingFrequency)));
   }
 }
@@ -125,7 +124,7 @@ static int x = 0;
     int y = map(sharedRawVal, 0, 4095, 60, 3);
     display.drawLine(x - 1, lastY, x, y, SSD1306_WHITE);
     
-    if (x % 2 == 0) { // Aggiorna meno spesso per dare priorità alla FFT
+    if (x % 2 == 0) {
         display.setCursor(0,0);
         display.fillRect(0,0,128,10, SSD1306_BLACK);
         display.print("Fs: "); display.print(currentSamplingFrequency); display.print("Hz");
@@ -139,11 +138,10 @@ static int x = 0;
   }
 }
 
-// --- TASK 3: ANALISI FFT (Discovery & Adaptation) ---
+// --- TASK 3: ANALISI FFT ---
 void TaskFFT(void *pvParameters) {
   for (;;) {
     if (newDataReady) {
-      // Ricalibra l'algoritmo con la frequenza REALE usata per riempire il buffer
       FFT = ArduinoFFT<double>(vReal, vImag, SAMPLES, (double)currentSamplingFrequency);
 
       // 1. Elaborazione FFT
@@ -160,15 +158,15 @@ void TaskFFT(void *pvParameters) {
       Serial.println(" Hz");
 
       // 3. LOGICA ADATTIVA (Nyquist: Fs = 2 * Fmax)
-      // Aggiungiamo un margine di sicurezza (es. 5 invece di 2)
-      float recommendedFreq = peakFreq * 2.5; // Margine di sicurezza per evitare aliasing e avere più risoluzione
+      // Aggiungiamo un margine di sicurezza (es. 2.5 invece di 2)
+      float recommendedFreq = peakFreq * 2.5;
       
       // Limiti di sicurezza per l'hardware
       if (recommendedFreq < 15.0) {
           recommendedFreq = 15.0;
       }
-      if (recommendedFreq > SAMPLING_FREQUENCY) {
-          recommendedFreq = SAMPLING_FREQUENCY; // Non superare i 100Hz
+      if (recommendedFreq > MAX_SAMPLING_FREQ) {
+          recommendedFreq = MAX_SAMPLING_FREQ; // Non superare i 1000Hz
       }
 
       currentSamplingFrequency = recommendedFreq; // Aggiorna la frequenza di campionamento attuale
@@ -176,7 +174,6 @@ void TaskFFT(void *pvParameters) {
       Serial.print("Nuova Frequenza Adattata: ");
       Serial.println(currentSamplingFrequency);
 
-      // 4. Libera il buffer per una nuova analisi dopo un po'
       vTaskDelay(pdMS_TO_TICKS(3000)); // Analizza ogni 3 secondi
       newDataReady = false;
     }
