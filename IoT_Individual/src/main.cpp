@@ -3,33 +3,43 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-// Configurazione Display
+// Definizione Pin Heltec V3
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
-#define OLED_RST 21 
 #define OLED_SDA 17
 #define OLED_SCL 18
-#define VEXT_PIN 19
+#define OLED_RST 21
+#define VEXT_PIN 36
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 
-// Variabili globali per la comunicazione tra Task
-volatile int sharedRawVal = 2048; // Valore ADC condiviso
 const int sensorPin = 1;         // GPIO 1
+volatile int sharedRawVal = 2048; // Variabile condivisa tra i task
 
-// Prototipi dei Task
 void TaskSampling(void *pvParameters);
 void TaskDisplay(void *pvParameters);
 
 void setup() {
   Serial.begin(115200);
+  delay(1000);
+  Serial.println("--- AVVIO SISTEMA ---");
 
-  // Inizializzazione Hardware
+  // 1. Alimentazione Display
+  pinMode(VEXT_PIN, OUTPUT);
+  digitalWrite(VEXT_PIN, LOW); 
+  delay(500); // Mezzo secondo di attesa alimentazione
+
+  // 3. Inizializzazione I2C con velocità standard (100kHz)
   Wire.begin(OLED_SDA, OLED_SCL);
+  Wire.setClock(100000); 
+
+  // 4. Inizializzazione Display
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println(F("SSD1306 failed"));
-    for(;;);
+    Serial.println("ERRORE: Schermo non trovato!");
+  } else {
+    Serial.println("SCHERMO: Trovato e Inizializzato!");
   }
+
   display.clearDisplay();
   analogReadResolution(12);
   
@@ -53,6 +63,7 @@ void setup() {
     0               // Core 0 (lasciamo il core 0 per WiFi/BT e grafica)
   );
 }
+
 
 void loop() {
   // Il loop rimane vuoto in FreeRTOS
