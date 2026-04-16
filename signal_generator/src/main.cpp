@@ -17,13 +17,12 @@ void setup() {
 }
 
 void loop() {
-    // Calcolo della funzione somma: 2*sin(2*pi*3*t) + 4*sin(2*pi*2*t)
-    // Ampiezza massima teorica: 2 + 4 = 6.0
-    float signal = 2.0 * sin(2.0 * PI * 3.0 * t) + 4.0 * sin(2.0 * PI * 2.0 * t);
-
+    // Calcolo della funzione somma: 3*sin(2*pi*10*t) + 4*sin(2*pi*6*t)
+    // Ampiezza massima teorica: 3 + 4 = 7.0
+    float signal = 2.0 * sin(2.0 * PI * 3.0 * t) + 4.0 * sin(2.0 * PI * 6.0 * t);
     // Mappatura 0-255 per il PWM
-    // (signal + 6.0) porta il range da [-6, +6] a [0, 12]
-    // Dividendo per 12.0 normalizziamo tra 0 e 1
+    // (signal + 7.0) porta il range da [-7, +7] a [0, 14]
+    // Dividendo per 14.0 normalizziamo tra 0 e 1
     float normalized = (signal + 6.0) / 12.0; 
     int pwmValue = (int)(normalized * 255.0);
 
