@@ -3,6 +3,8 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <arduinoFFT.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
 
 // Definizione Pin Heltec V3
 #define SCREEN_WIDTH 128
@@ -27,10 +29,24 @@ volatile float currentSamplingFrequency = MAX_SAMPLING_FREQ;
 
 ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, SAMPLES, MAX_SAMPLING_FREQ);
 
+// Configurazione WiFi e MQTT
+const char* ssid = "IoT";
+const char* password = "12345678";
+const char* mqtt_server = "192.168.137.1"; // IP del hotspot del PC
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+// Variabili di aggregazione
+volatile float windowSum;
+volatile int windowCount;
+
+
 // TASKS
 void TaskSampling(void *pvParameters);
 void TaskDisplay(void *pvParameters);
 void TaskFFT(void *pvParameters);
+void TaskMQTT(void *pvParameters);
 
 void setup() {
   Serial.begin(115200);
@@ -83,7 +99,17 @@ void setup() {
     NULL,
     2,              // Priorità media (tra sampling e display)
     NULL,
-    1               // Core 1
+    0               // Core 0
+  );
+
+  xTaskCreatePinnedToCore(
+    TaskMQTT,       // Funzione che invia dati via MQTT
+    "MQTT",
+    8192,
+    NULL,
+    1,              // Priorità bassa
+    NULL,
+    0               // Core 0
   );
 }
 
@@ -101,6 +127,9 @@ void TaskSampling(void *pvParameters) {
 
     // Leggi il segnale
     sharedRawVal = analogRead(sensorPin);
+
+    windowSum += sharedRawVal;
+    windowCount++;
     
     if(!newDataReady) {
       vReal[sampleIndex] = (double)sharedRawVal;
@@ -112,24 +141,28 @@ void TaskSampling(void *pvParameters) {
         newDataReady = true;
       }
     }
+
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS((int)(1000.0 / currentSamplingFrequency)));
   }
 }
 
 // --- TASK 2: VISUALIZZAZIONE ---
 void TaskDisplay(void *pvParameters) {
-static int x = 0;
+  static int x = 0;
   static int lastY = 32;
+  static unsigned long lastSerialPrint = 0;
+
   for (;;) {
     int y = map(sharedRawVal, 0, 4095, 60, 3);
     display.drawLine(x - 1, lastY, x, y, SSD1306_WHITE);
     
-    if (x % 2 == 0) {
+    if (x % 4 == 0) {
         display.setCursor(0,0);
         display.fillRect(0,0,128,10, SSD1306_BLACK);
         display.print("Fs: "); display.print(currentSamplingFrequency); display.print("Hz");
         display.display();
     }
+
     lastY = y;
     x++;
     if (x >= 128) { x = 0; display.clearDisplay(); }
@@ -178,5 +211,42 @@ void TaskFFT(void *pvParameters) {
       newDataReady = false;
     }
     vTaskDelay(pdMS_TO_TICKS(100));
+  }
+}
+
+// --- TASK 4: MQTT ---
+void TaskMQTT(void *pvParameters) {
+  // Questo task si occuperà di inviare i dati rilevati al broker MQTT
+  WiFi.begin(ssid, password);
+  client.setServer(mqtt_server, 1883);
+
+  for(;;){
+    //finestra di 5 secondi
+    vTaskDelay(pdMS_TO_TICKS(5000));
+
+    if (WiFi.status() == WL_CONNECTED) {
+      if (!client.connected()){
+        Serial.println("Connessione al broker MQTT...");
+        client.connect("ESP32Client");
+      }
+
+      if (client.connected() && windowCount > 0) {
+        // Calcola la media della finestra
+        float average = windowSum / windowCount;
+
+        char payload[150];
+        snprintf(payload, sizeof(payload), "Average: %.2f", average);
+        client.publish("esp32/average", payload);
+        Serial.print("Dati inviati al broker MQTT: ");
+        Serial.println(payload);
+
+        // Resetta le variabili di aggregazione
+        windowSum = 0;
+        windowCount = 0;
+      }
+    }
+    else{
+      Serial.println("WiFi disconnesso");
+    }
   }
 }
