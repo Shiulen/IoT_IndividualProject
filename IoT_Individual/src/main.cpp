@@ -51,6 +51,13 @@ SemaphoreHandle_t freqMutex;
 SemaphoreHandle_t xFFTReady;  // Segnala che i campioni sono pronti
 SemaphoreHandle_t xFFTFinished; // Segnala che FFT ha finito
 
+// === METRICHE DI PERFORMANCE ===
+volatile unsigned long windowStartTime = 0;      // Inizio finestra (primo campione)
+volatile unsigned long fftStartTime = 0;         // Inizio FFT
+volatile unsigned long fftEndTime = 0;           // Fine FFT
+volatile unsigned long fftDurationUs = 0;        // Durata FFT in microsecond
+volatile unsigned long generationLatencyUs = 0;  // Dal primo sample al publish
+
 
 // TASKS
 void TaskSampling(void *pvParameters);
@@ -142,6 +149,11 @@ void TaskSampling(void *pvParameters) {
 
   for (;;) {
 
+    // === TRACCIA INIZIO FINESTRA (primo campione) ===
+    if (sampleIndex == 0) {
+      windowStartTime = micros();
+    }
+
     // Leggi il segnale
     sharedRawVal = analogRead(sensorPin);
 
@@ -218,11 +230,18 @@ void TaskFFT(void *pvParameters) {
       // Re-link the library to the newly swapped proc pointers
       ArduinoFFT<double> FFT = ArduinoFFT<double>(fftReal, fftImag, SAMPLES, currentFreq);
 
+      // === INIZIO MISURAZIONE FFT ===
+      fftStartTime = micros();
+
       // 1. Elaborazione FFT
       FFT.dcRemoval();
       FFT.windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
       FFT.compute(FFT_FORWARD);
       FFT.complexToMagnitude();
+
+      // === FINE MISURAZIONE FFT ===
+      fftEndTime = micros();
+      fftDurationUs = fftEndTime - fftStartTime;
 
       // Find Max Frequency (Shannon check)
       double threshold = 500.0;
@@ -300,25 +319,54 @@ void TaskMQTT(void *pvParameters) {
         client.publish("esp32/average", payload);
         unsigned long endPublishTime = micros();
 
-        // --- CALCOLO METRICHE FINALI ---
-        unsigned long mathTime = startPublishTime - startTime; // Solo il calcolo matematico
-        unsigned long networkLatency = endPublishTime - startPublishTime;      // Solo il tempo di invio WiFi
-        unsigned long endToEndLatency = endPublishTime - startTime; // Tempo Totale (Math + Rete)
+        // === CALCOLO METRICHE COMPLETE ===
+        unsigned long mathTime = startPublishTime - startTime;              // Solo il calcolo matematico
+        unsigned long networkLatency = endPublishTime - startPublishTime;   // Solo il tempo di invio WiFi
+        unsigned long publishLatency = endPublishTime - startTime;          // Math + Network
+        unsigned long generationLatency = endPublishTime - windowStartTime; // Dal primo sample al publish (LATENZA REALE)
 
         // STAMPA SULLA SERIALE PER DEBUG
         Serial.printf("VALORE MEDIO: %.2f\n\n", average);
         Serial.printf("VALORE %d\n\n",sharedRawVal);
 
-        // STAMPA IL REPORT SULLA SERIALE
-        Serial.println("\n========== REPORT PERFORMANCE ==========");
-        Serial.printf("1. Esecuzione Finestra (Elaborazione): %lu us\n", mathTime);
-        Serial.printf("2. Latenza di Rete (WiFi/MQTT):        %lu us\n", networkLatency);
-        Serial.printf("3. Latenza End-to-End stimata:         %lu us\n", endToEndLatency);
-        Serial.printf("4. Dati Raw teorici (1000Hz):          %d Bytes\n", rawOverSampled);
-        Serial.printf("5. Dati Raw reali (Adaptive):          %d Bytes\n", rawAdaptive);
-        Serial.printf("6. Dati Effettivi inviati (JSON):      %d Bytes\n", strlen(payload));
-        Serial.printf(">> RISPARMIO BANDA: -%d Bytes per finestra!\n", (rawOverSampled - strlen(payload)));
-        Serial.println("========================================\n");
+        // === REPORT PERFORMANCE COMPLETO ===
+        Serial.println("\n=============================================================");
+        Serial.println("          REPORT PERFORMANCE METRICHE COMPLETE");
+        Serial.println("=============================================================");
+        
+        Serial.println("\n--- PER-WINDOW EXECUTION TIME ---");
+        Serial.printf("FFT Execution:              %lu us (%.2f ms)\n", fftDurationUs, fftDurationUs/1000.0);
+        Serial.printf("Media Calculation:          %lu us\n", mathTime);
+        Serial.printf("Calcoli + Math:             %lu us (%.2f ms)\n", publishLatency, publishLatency/1000.0);
+        
+        Serial.println("\n--- LATENCY ANALYSIS ---");
+        Serial.printf("Generation Latency:         %lu us (%.2f ms)\n", generationLatency, generationLatency/1000.0);
+        Serial.println("  (Dal primo sample al publish MQTT)");
+        Serial.println("  (Include: Sampling + FFT + Aggregation + Math)");
+        Serial.printf("Network Latency (WiFi):     %lu us (%.2f ms)\n", networkLatency, networkLatency/1000.0);
+        Serial.println("  (Solo tempo trasmissione MQTT publish)");
+        Serial.printf("Total Publish Latency:      %lu us (%.2f ms)\n", publishLatency, publishLatency/1000.0);
+        
+        Serial.println("\n--- DATA VOLUME COMPARISON ---");
+        Serial.printf("Over-sampled (1000Hz * 3s): %d Bytes\n", rawOverSampled);
+        Serial.printf("Adaptive Sampling:          %d Bytes\n", rawAdaptive);
+        Serial.printf("Payload MQTT (JSON):        %d Bytes\n", (int)strlen(payload));
+        float dataReduction = (1.0 - (float)strlen(payload)/(float)rawOverSampled)*100.0;
+        Serial.printf("Data Reduction:             %.1f%% (vs over-sampled)\n", dataReduction);
+        Serial.printf("RISPARMIO BANDA:            -%d Bytes per finestra!\n", (rawOverSampled - (int)strlen(payload)));
+        
+        Serial.println("\n--- SAMPLING FREQUENCY & WINDOW ---");
+        xSemaphoreTake(freqMutex, portMAX_DELAY);
+        float fs_current = currentSamplingFrequency;
+        xSemaphoreGive(freqMutex);
+        
+        float window_duration_ms = (SAMPLES / fs_current) * 1000.0;
+        Serial.printf("Current Sampling Freq:      %.2f Hz\n", fs_current);
+        Serial.printf("Window Duration:            %.2f ms (per %d samples)\n", window_duration_ms, SAMPLES);
+        Serial.printf("Samples per 3s:             %d\n", count);
+        
+        Serial.println("\n=============================================================\n");
+        
         }else {
           xSemaphoreGive(windowMutex);
         }
