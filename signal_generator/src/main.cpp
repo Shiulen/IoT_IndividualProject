@@ -19,7 +19,7 @@ void setup() {
 void loop() {
     // Calcolo della funzione somma: 3*sin(2*pi*10*t) + 4*sin(2*pi*6*t)
     // Ampiezza massima teorica: 3 + 4 = 7.0
-    float signal = 2.0 * sin(2.0 * PI * 2.0 * t) + 4.0 * sin(2.0 * PI * 3.0 * t);
+    float signal = 2.0 * sin(2.0 * PI * 2.0 * t) + 4.0 * sin(3.0 * PI * 1.0 * t);
     // Mappatura 0-255 per il PWM
     // (signal + 7.0) porta il range da [-7, +7] a [0, 14]
     // Dividendo per 14.0 normalizziamo tra 0 e 1

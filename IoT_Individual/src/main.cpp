@@ -119,7 +119,6 @@ void setup() {
     0               // Core 0
   );
 
-  /*
   xTaskCreatePinnedToCore(
     TaskMQTT,       // Funzione che invia dati via MQTT
     "MQTT",
@@ -129,7 +128,6 @@ void setup() {
     NULL,
     0               // Core 0
   );
-  */
 }
 
 
@@ -188,7 +186,7 @@ void TaskDisplay(void *pvParameters) {
   static unsigned long lastSerialPrint = 0;
 
   for (;;) {
-    int y = map(sharedRawVal, 0, 4095, 60, 3);
+    int y = map(sharedRawVal, 0, 4095, 63, 0);
     display.drawLine(x - 1, lastY, x, y, SSD1306_WHITE);
     
     if (x % 4 == 0) {
@@ -212,6 +210,7 @@ void TaskDisplay(void *pvParameters) {
 void TaskFFT(void *pvParameters) {
   while (1) {
     if (xSemaphoreTake(xFFTReady, portMAX_DELAY) == pdTRUE) {
+      
       xSemaphoreTake(freqMutex, portMAX_DELAY);
       double currentFreq = currentSamplingFrequency;
       xSemaphoreGive(freqMutex);
@@ -220,7 +219,7 @@ void TaskFFT(void *pvParameters) {
       ArduinoFFT<double> FFT = ArduinoFFT<double>(fftReal, fftImag, SAMPLES, currentFreq);
 
       // 1. Elaborazione FFT
-      FFT.dcRemoval(); // Toglie l'offset di 1.65V
+      FFT.dcRemoval();
       FFT.windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
       FFT.compute(FFT_FORWARD);
       FFT.complexToMagnitude();
@@ -241,8 +240,8 @@ void TaskFFT(void *pvParameters) {
       float recommendedFreq = f_max * 2.5;
       
       // Limiti di sicurezza per l'hardware
-      if (recommendedFreq < 15.0) {
-          recommendedFreq = 15.0;
+      if (recommendedFreq < 20.0) {
+          recommendedFreq = 20.0;
       }
       if (recommendedFreq > MAX_SAMPLING_FREQ) {
           recommendedFreq = MAX_SAMPLING_FREQ;
@@ -261,7 +260,6 @@ void TaskFFT(void *pvParameters) {
   }
 }
 
-/*
 
 // --- TASK 4: MQTT ---
 void TaskMQTT(void *pvParameters) {
@@ -307,6 +305,10 @@ void TaskMQTT(void *pvParameters) {
         unsigned long networkLatency = endPublishTime - startPublishTime;      // Solo il tempo di invio WiFi
         unsigned long endToEndLatency = endPublishTime - startTime; // Tempo Totale (Math + Rete)
 
+        // STAMPA SULLA SERIALE PER DEBUG
+        Serial.printf("VALORE MEDIO: %.2f\n\n", average);
+        Serial.printf("VALORE %d\n\n",sharedRawVal);
+
         // STAMPA IL REPORT SULLA SERIALE
         Serial.println("\n========== REPORT PERFORMANCE ==========");
         Serial.printf("1. Esecuzione Finestra (Elaborazione): %lu us\n", mathTime);
@@ -317,7 +319,7 @@ void TaskMQTT(void *pvParameters) {
         Serial.printf("6. Dati Effettivi inviati (JSON):      %d Bytes\n", strlen(payload));
         Serial.printf(">> RISPARMIO BANDA: -%d Bytes per finestra!\n", (rawOverSampled - strlen(payload)));
         Serial.println("========================================\n");
-        } else {
+        }else {
           xSemaphoreGive(windowMutex);
         }
       }
@@ -327,4 +329,3 @@ void TaskMQTT(void *pvParameters) {
     }
   }
 }
-  */
