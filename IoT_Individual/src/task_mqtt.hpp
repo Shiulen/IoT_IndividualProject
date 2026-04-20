@@ -1,15 +1,26 @@
 #include "globals.h"
 
+volatile unsigned long lastPublishTime = 0;
+
 extern WiFiClient espClient;
 extern PubSubClient client;
 
-bool publishToMQTT(float average, char* payloadBuffer, size_t payloadSize, 
-                   unsigned long &startPub, unsigned long &endPub) {
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+    if (strcmp(topic, "server/ack") == 0) {
+        unsigned long ackTime = micros();
+        unsigned long roundTripTime = ackTime - lastPublishTime;
+        
+        Serial.println("\n<<< [PING-PONG] RICEVUTO ACK DAL SERVER EDGE! <<<");
+        Serial.printf("Tempo di Round-Trip (Andata + Ritorno): %.2f ms\n", roundTripTime / 1000.0);
+    }
+}
+
+bool publishToMQTT(float average, char* payloadBuffer, size_t payloadSize) {
     snprintf(payloadBuffer, payloadSize, "Average: %.2f", average);
     
-    startPub = micros();
+    Serial.println("\n>>> INVIO PACCHETTO AL SERVER EDGE... >>>");
+    lastPublishTime = micros(); // FACCIO PARTIRE IL CRONOMETRO!
     bool success = client.publish("esp32/average", payloadBuffer);
-    endPub = micros();
     
     return success;
 }
@@ -17,41 +28,30 @@ bool publishToMQTT(float average, char* payloadBuffer, size_t payloadSize,
 void TaskMQTT(void *pvParameters) {
     WiFi.begin(ssid, password);
     client.setServer(mqtt_server, 1883);
+    client.setCallback(mqttCallback);
 
     for(;;) {
-        vTaskDelay(pdMS_TO_TICKS(3000));
+        unsigned long startWait = millis();
+        while(millis() - startWait < 3000) {
+            client.loop();
+            vTaskDelay(pdMS_TO_TICKS(10)); 
+        }
 
         if (WiFi.status() == WL_CONNECTED) {
             if (!client.connected()) {
                 Serial.println("Connessione al broker MQTT...");
-                client.connect("ESP32Client");
+                if(client.connect("ESP32Client")) {
+                    client.subscribe("server/ack");
+                }
             }
 
             if (client.connected()) {
-                unsigned long startTime = micros();
-                
                 int count = 0;
                 float average = getAggregatedAvg(count);
 
-                unsigned long mathTime = micros() - startTime;
-
                 if (count > 0) {
                     char payload[150];
-                    unsigned long startPublishTime, endPublishTime;
-
-                    publishToMQTT(average, payload, sizeof(payload), startPublishTime, endPublishTime);
-
-                    unsigned long networkLatency = endPublishTime - startPublishTime;   
-                    unsigned long publishLatency = endPublishTime - startTime;          
-                    unsigned long generationLatency = endPublishTime - aggregationStartTime;
-
-                    int rawOverSampled = realOversampledPerWindow * 4; 
-                    int rawAdaptive = count * 4; 
-
-                    // 4. Stampa Report
-                    printPerformanceReport(average, count, mathTime, networkLatency, 
-                                           publishLatency, generationLatency, 
-                                           rawOverSampled, rawAdaptive, strlen(payload));
+                    publishToMQTT(average, payload, sizeof(payload));   
                 }
             }
         } else {
