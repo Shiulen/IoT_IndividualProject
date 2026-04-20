@@ -44,11 +44,11 @@ extern PubSubClient client;
 // ======== AGGREGATION & METRICS =======
 extern volatile float windowSum;
 extern volatile int windowCount;
-extern volatile unsigned long windowStartTime;
+extern volatile unsigned long aggregationStartTime;
 extern volatile unsigned long fftStartTime;
 extern volatile unsigned long fftEndTime;
 extern volatile unsigned long fftDurationUs;
-extern volatile unsigned long generationLatencyUs;
+extern int realOversampledPerWindow;
 
 // ======== SEMAPHORES =======
 extern SemaphoreHandle_t windowMutex;

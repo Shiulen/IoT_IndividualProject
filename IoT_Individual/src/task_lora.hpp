@@ -41,15 +41,8 @@ void TaskLora(void *pvParameters) {
         Serial.println("\n[Task LoRa] Risveglio: Preparazione Trasmissione.");
         updateStatus("Preparazione TX LoRa...");
 
-        float avg = 0; int cnt = 0;
-        xSemaphoreTake(windowMutex, portMAX_DELAY);
-        if (windowCount > 0) {
-            avg = windowSum / windowCount;
-            cnt = windowCount;
-            windowSum = 0;
-            windowCount = 0;
-        }
-        xSemaphoreGive(windowMutex);
+        int cnt = 0;
+        float avg = getAggregatedAvg(cnt);
 
         if (cnt > 0 && node.isActivated()) {
             Serial.printf("[Task LoRa] Dati aggregati. Media: %.2f (su %d campioni)\n", avg, cnt);

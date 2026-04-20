@@ -8,10 +8,10 @@ void TaskSampling(void *pvParameters) {
   updateStatus("Campionamento in corso...");
 
   for (;;) {
-    if (sampleIndex == 0) windowStartTime = micros();
     sharedRawVal = analogRead(sensorPin);
 
     xSemaphoreTake(windowMutex, portMAX_DELAY);
+    if(windowCount == 0) aggregationStartTime = micros();
     windowSum += sharedRawVal;
     windowCount++;
     xSemaphoreGive(windowMutex);

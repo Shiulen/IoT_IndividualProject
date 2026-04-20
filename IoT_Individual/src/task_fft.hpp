@@ -35,8 +35,8 @@ void TaskFFT(void *pvParameters) {
       double f_max = (topBin * currentFreq) / (double)SAMPLES;
       float recommendedFreq = f_max * 2.5;
       
-      if (recommendedFreq < 15.0) {
-          recommendedFreq = 15.0;
+      if (recommendedFreq < 20.0) {
+          recommendedFreq = 20.0;
       }
       if (recommendedFreq > MAX_SAMPLING_FREQ) {
           recommendedFreq = MAX_SAMPLING_FREQ;
