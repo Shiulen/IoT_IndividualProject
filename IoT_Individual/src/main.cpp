@@ -1,11 +1,19 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
 #include <arduinoFFT.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <freertos/semphr.h>
+
+// LORA CONFIG
+#include <heltec_unofficial.h>
+#include <LoRaWAN_ESP32.h>
+uint64_t deveui = 0x70B3D57ED0076FF9;
+uint64_t appeui = 0x0000000000000000;
+uint8_t appkey[] = {0xFD, 0x02, 0x55, 0xEA, 0x0B, 0xC4, 0x98, 0xDA, 0xAA, 0xF0, 0x2D, 0x9A, 0x7F, 0x74, 0xB3, 0xCB};
+
+LoRaWANNode node(&radio, &EU868);
+#define MINIMUM_DELAY 30 // Secondi minimi di pausa tra un invio e l'altro
 
 // Definizione Pin Heltec V3
 #define SCREEN_WIDTH 128
@@ -19,7 +27,8 @@
 #define SAMPLES 128             // Numero di campioni
 #define MAX_SAMPLING_FREQ 1000  // Frequenza di campionamento massima
 
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
+// Configurazione Display
+// Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 
 const int sensorPin = 1;         // GPIO 1
 volatile int sharedRawVal = 2048; // Variabile condivisa tra i task
@@ -43,6 +52,8 @@ const char* mqtt_server = "192.168.137.1"; // IP del hotspot del PC
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+volatile char systemStatus[32] = "Inizializzazione...";
+
 // Variabili di aggregazione
 volatile float windowSum;
 volatile int windowCount;
@@ -50,6 +61,14 @@ SemaphoreHandle_t windowMutex;
 SemaphoreHandle_t freqMutex;
 SemaphoreHandle_t xFFTReady;  // Segnala che i campioni sono pronti
 SemaphoreHandle_t xFFTFinished; // Segnala che FFT ha finito
+SemaphoreHandle_t statusMutex;
+
+void updateStatus(const char* newStatus) {
+    xSemaphoreTake(statusMutex, portMAX_DELAY);
+    strncpy((char*)systemStatus, newStatus, sizeof(systemStatus) - 1);
+    xSemaphoreGive(statusMutex);
+}
+
 
 // === METRICHE DI PERFORMANCE ===
 volatile unsigned long windowStartTime = 0;      // Inizio finestra (primo campione)
@@ -63,35 +82,25 @@ volatile unsigned long generationLatencyUs = 0;  // Dal primo sample al publish
 void TaskSampling(void *pvParameters);
 void TaskDisplay(void *pvParameters);
 void TaskFFT(void *pvParameters);
-void TaskMQTT(void *pvParameters);
+// void TaskMQTT(void *pvParameters);
+void TaskLora(void *pvParameters);
 
 void setup() {
-  Serial.begin(115200);
-  delay(1000);
+
+  heltec_setup(); // Inizializza display e LoRa
   Serial.println("--- AVVIO SISTEMA ---");
 
-  // 1. Alimentazione Display
-  pinMode(VEXT_PIN, OUTPUT);
-  digitalWrite(VEXT_PIN, LOW); 
-  delay(500);
+  display.setFont(ArialMT_Plain_10);
+  display.clear();
+  display.drawString(0, 0, "Sistema Avviato");
+  display.display();
 
-  // 3. Inizializzazione I2C con velocità standard (100kHz)
-  Wire.begin(OLED_SDA, OLED_SCL);
-  Wire.setClock(100000); 
-
-  // 4. Inizializzazione Display
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println("ERRORE: Schermo non trovato!");
-  } else {
-    Serial.println("SCHERMO: Trovato e Inizializzato!");
-  }
-
-  display.clearDisplay();
   analogReadResolution(12);
 
   // Creazione mutex e semafori
   windowMutex = xSemaphoreCreateMutex();
   freqMutex = xSemaphoreCreateMutex();
+  statusMutex = xSemaphoreCreateMutex();
   xFFTReady = xSemaphoreCreateBinary();
   xFFTFinished = xSemaphoreCreateBinary();
   xSemaphoreGive(xFFTFinished); // Inizializza: FFT è "già finita" al boot
@@ -127,11 +136,11 @@ void setup() {
   );
 
   xTaskCreatePinnedToCore(
-    TaskMQTT,       // Funzione che invia dati via MQTT
-    "MQTT",
+    TaskLora,       // Funzione che invia dati via LoRa
+    "Lora",
     8192,
     NULL,
-    1,              // Priorità bassa
+    2,              // Priorità media
     NULL,
     0               // Core 0
   );
@@ -146,6 +155,8 @@ void loop() {
 void TaskSampling(void *pvParameters) {
   TickType_t xLastWakeTime = xTaskGetTickCount();
   int sampleIndex = 0;
+  Serial.println("--- TASK SAMPLING AVVIATO ---");
+  updateStatus("Campionamento in corso...");
 
   for (;;) {
 
@@ -198,21 +209,37 @@ void TaskDisplay(void *pvParameters) {
   static unsigned long lastSerialPrint = 0;
 
   for (;;) {
-    int y = map(sharedRawVal, 0, 4095, 63, 0);
-    display.drawLine(x - 1, lastY, x, y, SSD1306_WHITE);
-    
+    int y = map(sharedRawVal, 0, 4095, 63, 15);
+    display.drawLine(x - 1, lastY, x, y);     
+
     if (x % 4 == 0) {
         xSemaphoreTake(freqMutex, portMAX_DELAY);
-        display.setCursor(0,0);
-        display.fillRect(0,0,128,10, SSD1306_BLACK);
-        display.print("Fs: "); display.print(currentSamplingFrequency); display.print("Hz");
-        display.display();
+        float currentFreq = currentSamplingFrequency;
         xSemaphoreGive(freqMutex);
+        
+        char localStatus[32];
+        xSemaphoreTake(statusMutex, portMAX_DELAY);
+        strncpy(localStatus, (const char*)systemStatus, sizeof(localStatus));
+        xSemaphoreGive(statusMutex);
+        
+        // Pulisce l'intestazione (0-14 pixel in alto)
+        display.setColor(BLACK);
+        display.fillRect(0, 0, 128, 14);
+        display.setColor(WHITE); 
+        
+        display.setFont(ArialMT_Plain_10);
+        // Stampa Freq in alto a sinistra
+        String freqText = "Fs: " + String(currentFreq, 1) + "Hz";
+        display.drawString(0, 0, freqText);
+        
+        // Stampa lo Stato corrente in alto a destra o sotto
+        display.drawString(55, 0, localStatus);
+        
+        display.display();
     }
-
     lastY = y;
     x++;
-    if (x >= 128) { x = 0; display.clearDisplay(); }
+    if (x >= 128) { x = 0; display. clear(); }
 
     vTaskDelay(pdMS_TO_TICKS(10));
   }
@@ -220,9 +247,12 @@ void TaskDisplay(void *pvParameters) {
 
 // --- TASK 3: ANALISI FFT ---
 void TaskFFT(void *pvParameters) {
+  Serial.println("[Task FFT] In attesa di dati...");
   while (1) {
     if (xSemaphoreTake(xFFTReady, portMAX_DELAY) == pdTRUE) {
       
+      updateStatus("Analisi FFT...");
+
       xSemaphoreTake(freqMutex, portMAX_DELAY);
       double currentFreq = currentSamplingFrequency;
       xSemaphoreGive(freqMutex);
@@ -272,6 +302,8 @@ void TaskFFT(void *pvParameters) {
       currentSamplingFrequency = recommendedFreq;
       xSemaphoreGive(freqMutex);
 
+      updateStatus("Campionamento..."); // Torna allo stato base
+
       // --- THE HANDSHAKE ---
       // Tell the Sampler: "I am done, you can have the buffer back"
       xSemaphoreGive(xFFTFinished);
@@ -281,6 +313,7 @@ void TaskFFT(void *pvParameters) {
 
 
 // --- TASK 4: MQTT ---
+/*
 void TaskMQTT(void *pvParameters) {
   // Questo task si occuperà di inviare i dati rilevati al broker MQTT
   WiFi.begin(ssid, password);
@@ -375,5 +408,93 @@ void TaskMQTT(void *pvParameters) {
     else{
       Serial.println("WiFi disconnesso");
     }
+  }
+}
+*/
+// --- TASK 5: LORA ---
+void TaskLora(void *pvParameters) {
+  Serial.println("[Task LoRa] Inizializzazione in corso...");
+  updateStatus("Radio Init...");
+  
+  int16_t state = radio.begin();
+  if (state != RADIOLIB_ERR_NONE) {
+    Serial.printf("[Task LoRa] ERRORE CRITICO Hardware Radio: %d\n", state);
+    updateStatus("ERR: Radio Hardware");
+    vTaskDelete(NULL); 
+  }
+  Serial.println("[Task LoRa] Modulo SX1262 Pronto.");
+
+  // QUI IL CAMBIO: Usiamo loadSession passandogli l'indirizzo di node (&node)
+  persist.loadSession(&node);
+  
+  // Da qui in poi usiamo il "punto" (.) perché node è un oggetto!
+  if (!node.isActivated()) {
+    Serial.println("[Task LoRa] Richiesta JOIN a The Things Network (OTAA)...");
+    updateStatus("Join TTN in corso...");
+    node.beginOTAA(appeui, deveui, NULL, appkey);
+    state = node.activateOTAA();
+    if(state == RADIOLIB_LORAWAN_NEW_SESSION) {
+        Serial.println("[Task LoRa] +++ JOIN AVVENUTO CON SUCCESSO! +++");
+        // Salviamo la sessione appena creata
+        persist.saveSession(&node);
+    } else {
+        Serial.printf("[Task LoRa] FALLIMENTO JOIN (Codice %d). Riproverò dopo.\n", state);
+    }
+  } else {
+      Serial.println("[Task LoRa] Nodo già attivato (Sessione recuperata).");
+  }
+  
+  node.setDutyCycle(true, 1250);
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+
+  for (;;) {
+    Serial.printf("\n[Task LoRa] Pausa per rispetto Duty Cycle (%d secondi)...\n", MINIMUM_DELAY);
+    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(MINIMUM_DELAY * 1000));
+
+    Serial.println("\n[Task LoRa] Risveglio: Preparazione Trasmissione.");
+    updateStatus("Preparazione TX LoRa...");
+
+    float average = 0;
+    int count = 0;
+    
+    xSemaphoreTake(windowMutex, portMAX_DELAY);
+    if (windowCount > 0) {
+      average = windowSum / windowCount;
+      count = windowCount;
+      windowSum = 0;
+      windowCount = 0;
+    }
+    xSemaphoreGive(windowMutex);
+
+    if (count > 0 && node.isActivated()) {
+      Serial.printf("[Task LoRa] Dati aggregati. Media: %.2f (su %d campioni)\n", average, count);
+      updateStatus("TX LoRa In Corso...");
+
+      uint16_t valToSend = (uint16_t)average;
+      uint8_t payload[2];
+      payload[0] = highByte(valToSend);
+      payload[1] = lowByte(valToSend);
+
+      Serial.println("[Task LoRa] SPEDIZIONE PACCHETTO NELL'ARIA...");
+      
+      // Usa il punto (.) per chiamare sendReceive
+      state = node.sendReceive(payload, 2, 1);
+
+      if (state == RADIOLIB_ERR_NONE) {
+        Serial.println("[Task LoRa] SUCCESSO: Pacchetto confermato (Downlink) dal Gateway!");
+        updateStatus("TX Confermato OK!");
+      } else if (state == RADIOLIB_ERR_RX_TIMEOUT) {
+        Serial.println("[Task LoRa] SUCCESSO: Pacchetto Inviato (Unconfirmed, nessuna risposta dal Gateway).");
+        updateStatus("TX Inviato OK!");
+      } else {
+        Serial.printf("[Task LoRa] ERRORE DI INVIO: %d\n", state);
+        updateStatus("ERR: TX Fallita");
+      }
+    } else {
+        Serial.println("[Task LoRa] Nessun dato da inviare o non connesso a TTN.");
+    }
+    
+    vTaskDelay(pdMS_TO_TICKS(2000)); 
+    updateStatus("Campionamento...");
   }
 }
