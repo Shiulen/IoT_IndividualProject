@@ -12,6 +12,8 @@ float getAggregatedAvg(int &out){
     }
     xSemaphoreGive(windowMutex);
 
+    avgPlot = avg;
+
     return avg;
 }
 

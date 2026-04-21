@@ -23,6 +23,7 @@ const int sensorPin = 1;
 volatile int sharedRawVal = 2048;
 volatile float currentSamplingFrequency = MAX_SAMPLING_FREQ;
 volatile char systemStatus[32] = "Inizializzazione...";
+volatile float avgPlot = 0;
 
 double vReal0[SAMPLES];
 double vReal1[SAMPLES];

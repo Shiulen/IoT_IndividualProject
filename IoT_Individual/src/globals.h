@@ -37,6 +37,7 @@ extern double *fftReal;
 extern double *fftImag;
 extern volatile float currentSamplingFrequency;
 extern volatile char systemStatus[32];
+extern volatile float avgPlot;
 
 // ======== WIFI & MQTT CONFIG =======
 extern const char* ssid;

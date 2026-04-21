@@ -37,6 +37,15 @@ void TaskSampling(void *pvParameters) {
     xSemaphoreTake(freqMutex, portMAX_DELAY);
     float currentFreq = currentSamplingFrequency;
     xSemaphoreGive(freqMutex);
+    
+    // PLOTTING ON SERIAL MONITOR
+    int curPlot=sharedRawVal;
+
+    Serial.print('>');
+    Serial.printf("Signal: %d", curPlot);
+    Serial.print(',');
+    Serial.printf("Avg: %.2f", avgPlot);
+    Serial.println();
 
 
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS((int)(1000.0 / currentFreq)));
