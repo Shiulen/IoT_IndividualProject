@@ -10,19 +10,15 @@ void TaskDisplay(void *pvParameters) {
 
     if (x % 4 == 0) {
         
-        char localStatus[32];
-        xSemaphoreTake(statusMutex, portMAX_DELAY);
-        strncpy(localStatus, (const char*)systemStatus, sizeof(localStatus));
-        xSemaphoreGive(statusMutex);
-        
         display.setColor(BLACK);
         display.fillRect(0, 0, 128, 14);
         display.setColor(WHITE);
         display.setFont(ArialMT_Plain_10);
-        display.drawString(0, 0, "Fs:" + String(currentSamplingFrequency, 2) + " Hz");
+        display.drawString(0, 0, "Fs:" + String(currentSamplingFrequency, 2));
+        display.drawString(30, 0, "Avg:" + String(avgPlot, 2));
         display.display();
 
-        
+
     }
     lastY = y;
     x++;

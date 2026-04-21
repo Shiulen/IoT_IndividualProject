@@ -36,7 +36,6 @@ extern double *procImag;
 extern double *fftReal;
 extern double *fftImag;
 extern volatile float currentSamplingFrequency;
-extern volatile char systemStatus[32];
 extern volatile float avgPlot;
 
 // ======== WIFI & MQTT CONFIG =======
@@ -58,12 +57,8 @@ extern int realOversampledPerWindow;
 // ======== SEMAPHORES =======
 extern SemaphoreHandle_t windowMutex;
 extern SemaphoreHandle_t freqMutex;
-extern SemaphoreHandle_t statusMutex;
 extern SemaphoreHandle_t xFFTReady;
 extern SemaphoreHandle_t xFFTFinished;
-
-// ======== FUNCTION PROTOTYPES =======
-void updateStatus(const char* newStatus);
 
 // ======== TASKS =======
 void TaskSampling(void *pvParameters);

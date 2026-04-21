@@ -5,26 +5,29 @@ volatile unsigned long lastPublishTime = 0;
 extern WiFiClient espClient;
 extern PubSubClient client;
 
+// Callback for ACK reception from the edge server (for E2E latency measurement)
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
     if (strcmp(topic, "server/ack") == 0) {
         unsigned long ackTime = micros();
         unsigned long roundTripTime = ackTime - lastPublishTime;
         
-        Serial.println("\n<<< [PING-PONG] RICEVUTO ACK DAL SERVER EDGE! <<<");
-        Serial.printf("Tempo di Round-Trip (Andata + Ritorno): %.2f ms\n", roundTripTime / 1000.0);
+        Serial.println("\n<<< [PING-PONG] ACK RECEIVED! <<<");
+        Serial.printf("Round-Trip-Time: %.2f ms\n", roundTripTime / 1000.0);
     }
 }
 
+// To publish avg on MQTT)
 bool publishToMQTT(float average, char* payloadBuffer, size_t payloadSize) {
     snprintf(payloadBuffer, payloadSize, "Average: %.2f", average);
     
-    Serial.println("\n>>> INVIO PACCHETTO AL SERVER EDGE... >>>");
-    lastPublishTime = micros(); // FACCIO PARTIRE IL CRONOMETRO!
+    Serial.println("\n>>> SENDING PACKET TO EDGE SERVER... >>>");
+    lastPublishTime = micros();
     bool success = client.publish("esp32/average", payloadBuffer);
     
     return success;
 }
 
+// ====== MQTT TASK ======
 void TaskMQTT(void *pvParameters) {
     WiFi.begin(ssid, password);
     client.setServer(mqtt_server, 1883);
@@ -39,7 +42,7 @@ void TaskMQTT(void *pvParameters) {
 
         if (WiFi.status() == WL_CONNECTED) {
             if (!client.connected()) {
-                Serial.println("Connessione al broker MQTT...");
+                Serial.println("CONNECTING TO MQTT BROKER...");
                 if(client.connect("ESP32Client")) {
                     client.subscribe("server/ack");
                 }

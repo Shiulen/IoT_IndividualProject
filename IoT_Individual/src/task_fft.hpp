@@ -5,7 +5,6 @@ void TaskFFT(void *pvParameters) {
   while (1) {
     if (xSemaphoreTake(xFFTReady, portMAX_DELAY) == pdTRUE) {
       
-      updateStatus("Analisi FFT...");
 
       xSemaphoreTake(freqMutex, portMAX_DELAY);
       double currentFreq = currentSamplingFrequency;
@@ -48,7 +47,6 @@ void TaskFFT(void *pvParameters) {
       currentSamplingFrequency = recommendedFreq;
       xSemaphoreGive(freqMutex);
 
-      updateStatus("Campionamento...");
       xSemaphoreGive(xFFTFinished);
     }
   }
