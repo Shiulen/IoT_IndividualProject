@@ -22,9 +22,6 @@ void printPerformanceReport(float average, int count,
                             unsigned long mathTime, unsigned long networkLatency, 
                             unsigned long publishLatency, unsigned long generationLatency, 
                             int rawOverSampled, int rawAdaptive, int payloadSize) {
-    
-    Serial.printf("VALORE MEDIO: %.2f\n\n", average);
-    Serial.printf("VALORE RAW CORRENTE: %d\n\n", sharedRawVal);
 
     Serial.println("\n=============================================================");
     Serial.println("                        REPORT PERFORMANCE");
@@ -50,9 +47,9 @@ void printPerformanceReport(float average, int count,
     float Total = (1.0 - (float)payloadSize / (float)rawOverSampled) * 100.0;
     
     Serial.println("\n--- DATA REDUCTION ---");
-    Serial.printf("1. FFT Adaptive:  %.1f%% (Risparmiati %d Bytes)\n", Adaptive, rawOverSampled - rawAdaptive);
-    Serial.printf("2. Aggregation:  %.1f%% (Risparmiati %d Bytes)\n", Aggregation, rawAdaptive - payloadSize);
-    Serial.printf("3. Total reduction:    %.2f%% (Da %d a %d Bytes!)\n", Total, rawOverSampled, payloadSize);
+    Serial.printf("1. FFT Adaptive:         %.1f%% (Risparmiati %d Bytes)\n", Adaptive, rawOverSampled - rawAdaptive);
+    Serial.printf("2. Aggregation:          %.1f%% (Risparmiati %d Bytes)\n", Aggregation, rawAdaptive - payloadSize);
+    Serial.printf("3. Total reduction:      %.2f%% (Da %d a %d Bytes!)\n", Total, rawOverSampled, payloadSize);
     
     Serial.println("\n--- SAMPLING FREQUENCY & WINDOW ---");
     xSemaphoreTake(freqMutex, portMAX_DELAY);

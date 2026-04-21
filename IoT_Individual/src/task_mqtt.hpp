@@ -1,6 +1,8 @@
 #include "globals.h"
 
 volatile unsigned long lastPublishTime = 0;
+volatile unsigned long rttNetworkLatency = 0;
+volatile bool ackReceived = false;
 
 extern WiFiClient espClient;
 extern PubSubClient client;
@@ -9,10 +11,8 @@ extern PubSubClient client;
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
     if (strcmp(topic, "server/ack") == 0) {
         unsigned long ackTime = micros();
-        unsigned long roundTripTime = ackTime - lastPublishTime;
-        
-        Serial.println("\n<<< [PING-PONG] ACK RECEIVED! <<<");
-        Serial.printf("Round-Trip-Time: %.2f ms\n", roundTripTime / 1000.0);
+        rttNetworkLatency = ackTime - lastPublishTime;
+        ackReceived=true;
     }
 }
 
@@ -35,7 +35,7 @@ void TaskMQTT(void *pvParameters) {
 
     for(;;) {
         unsigned long startWait = millis();
-        while(millis() - startWait < 3000) {
+        while(millis() - startWait < 5000) {
             client.loop();
             vTaskDelay(pdMS_TO_TICKS(10)); 
         }
@@ -49,12 +49,41 @@ void TaskMQTT(void *pvParameters) {
             }
 
             if (client.connected()) {
+
                 int count = 0;
+
+                unsigned long startFromHere = aggregationStartTime;
+
+                unsigned long startMath = micros();
                 float average = getAggregatedAvg(count);
+                unsigned long mathTime = micros() - startMath;
+
 
                 if (count > 0) {
                     char payload[150];
-                    publishToMQTT(average, payload, sizeof(payload));   
+
+                    ackReceived=false;
+                    unsigned long startNetwork = micros();
+                    publishToMQTT(average, payload, sizeof(payload));
+                    unsigned long waitStart = millis();
+                    while(!ackReceived && (millis()- waitStart < 1000)){
+                        client.loop();
+                        vTaskDelay(pdMS_TO_TICKS(5));
+                    }
+                    unsigned long endNetwork = micros();
+
+
+                    unsigned long NetworkLatency = 0;
+                    if(ackReceived) NetworkLatency=rttNetworkLatency;
+                    else{
+                        NetworkLatency=endNetwork-startNetwork;
+                    }
+
+                    unsigned long publishLatency = endNetwork - startMath;
+                    unsigned long generationLatency = endNetwork - startFromHere;
+
+                    printPerformanceReport(average,count,mathTime,NetworkLatency,publishLatency,generationLatency,realOversampledPerWindow*sizeof(int),count*sizeof(int),strlen(payload));
+                
                 }
             }
         } else {

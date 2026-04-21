@@ -23,6 +23,7 @@ void TaskLora(void *pvParameters) {
         Serial.printf("[Task LoRa] ERROR ABP: %d\n", state);
     }
 
+
     /* ======= OOTA =======
     persist.loadSession(&node);
 
@@ -43,8 +44,10 @@ void TaskLora(void *pvParameters) {
 
     */
 
+
     // COMMENTED FOR DEBUGGING PURPOSES, TO AVOID WAITING FOR THE DUTY CYCLE IN THE TESTS
     //node.setDutyCycle(true, 1250);
+
 
     node.setDutyCycle(false); 
     TickType_t xLast = xTaskGetTickCount();
@@ -89,7 +92,7 @@ void TaskLora(void *pvParameters) {
                 Serial.printf("[Task LoRa] SEND ERROR: %d\n", state);
             }
 
-            printPerformanceReport(avg,cnt,mathTime,networkLatency,publishLatency,generationLatency,realOversampledPerWindow*sizeof(int),cnt*sizeof(int),2);
+            printPerformanceReport(avg,cnt,mathTime,networkLatency,publishLatency,generationLatency,realOversampledPerWindow*sizeof(int),cnt*sizeof(int),sizeof(payload));
         }else {
         Serial.println("[Task LoRa] No data to send or not connected to TTN.");
         }

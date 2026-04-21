@@ -15,7 +15,7 @@ void TaskDisplay(void *pvParameters) {
         display.setColor(WHITE);
         display.setFont(ArialMT_Plain_10);
         display.drawString(0, 0, "Fs:" + String(currentSamplingFrequency, 2));
-        display.drawString(30, 0, "Avg:" + String(avgPlot, 2));
+        display.drawString(55, 0, "Avg:" + String(avgPlot, 2));
         display.display();
 
 

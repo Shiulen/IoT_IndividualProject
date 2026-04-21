@@ -35,8 +35,9 @@ void TaskSampling(void *pvParameters) {
     float currentFreq = currentSamplingFrequency;
     xSemaphoreGive(freqMutex);
     
-    /*
+
     // PLOTTING ON SERIAL MONITOR
+    /*
     int curPlot=sharedRawVal;
     Serial.print('>');
     Serial.printf("Signal: %d", curPlot);
