@@ -9,9 +9,13 @@
 #include <LoRaWAN_ESP32.h>
 
 // ======== LORA CONFIG =======
-extern uint64_t deveui;
-extern uint64_t appeui;
-extern uint8_t appkey[16];
+extern uint32_t devAddr;
+extern uint8_t appSKey[16];
+extern uint8_t nwkSKey[16];
+
+//extern uint64_t deveui;
+//extern uint64_t appeui;
+//extern uint8_t appkey[16];
 extern LoRaWANNode node;
 extern bool useLoraMode;
 #define MINIMUM_DELAY 30

@@ -14,6 +14,20 @@ void TaskLora(void *pvParameters) {
     }
     Serial.println("[Task LoRa] Modulo SX1262 Pronto.");
 
+    // ======= ABP =======
+    Serial.println("[Task LoRa] Attivazione in corso (ABP)...");
+    updateStatus("ABP Activation...");
+
+    state = node.beginABP(devAddr, NULL, NULL, nwkSKey, appSKey);
+    state=node.activateABP();
+
+    if (state == RADIOLIB_ERR_NONE || state == RADIOLIB_LORAWAN_NEW_SESSION) {
+        Serial.println("[Task LoRa] +++ NODO ATTIVO IN MODALITA' ABP! +++");
+        updateStatus("TTN Connesso!");
+    } else {
+        Serial.printf("[Task LoRa] Errore critico ABP: %d\n", state);
+    }
+    /* ======= OOTA =======
     persist.loadSession(&node);
 
     if (!node.isActivated()) {
@@ -21,6 +35,7 @@ void TaskLora(void *pvParameters) {
         updateStatus("Join TTN in corso...");
         node.beginOTAA(appeui, deveui, NULL, appkey);
         state = node.activateOTAA();
+
         if (state == RADIOLIB_LORAWAN_NEW_SESSION) {
             Serial.println("[Task LoRa] +++ JOIN AVVENUTO CON SUCCESSO! +++");
             persist.saveSession(&node);
@@ -31,7 +46,10 @@ void TaskLora(void *pvParameters) {
       Serial.println("[Task LoRa] Nodo già attivato (Sessione recuperata).");
     }
 
-    node.setDutyCycle(true, 1250);
+    */
+
+    //node.setDutyCycle(true, 1250);
+    node.setDutyCycle(false); 
     TickType_t xLast = xTaskGetTickCount();
 
     for (;;) {
@@ -43,6 +61,11 @@ void TaskLora(void *pvParameters) {
 
         int cnt = 0;
         float avg = getAggregatedAvg(cnt);
+
+        uint32_t tempoDiAttesa = node.timeUntilUplink();
+        if (tempoDiAttesa > 0) {
+            Serial.printf("[Task LoRa] ATTENZIONE: Duty Cycle attivo. Per legge devo aspettare ancora %lu millisecondi!\n", tempoDiAttesa);
+        }
 
         if (cnt > 0 && node.isActivated()) {
             Serial.printf("[Task LoRa] Dati aggregati. Media: %.2f (su %d campioni)\n", avg, cnt);

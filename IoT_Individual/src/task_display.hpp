@@ -21,6 +21,8 @@ void TaskDisplay(void *pvParameters) {
         display.setFont(ArialMT_Plain_10);
         display.drawString(0, 0, "Fs:" + String(currentSamplingFrequency, 2) + " Hz");
         display.display();
+
+        
     }
     lastY = y;
     x++;

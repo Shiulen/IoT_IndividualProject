@@ -38,6 +38,7 @@ void TaskSampling(void *pvParameters) {
     float currentFreq = currentSamplingFrequency;
     xSemaphoreGive(freqMutex);
 
+
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS((int)(1000.0 / currentFreq)));
   }
 }
