@@ -91,7 +91,7 @@ void TaskMQTT(void *pvParameters) {
                     unsigned long generationLatency = endNetwork - startFromHere;
 
                     // PRINT FOR PERFORMANCE
-                    // printPerformanceReport(average,count,mathTime,NetworkLatency,publishLatency,generationLatency,realOversampledPerWindow*sizeof(int),count*sizeof(int),strlen(payload));
+                    printPerformanceReport(average,count,mathTime,NetworkLatency,publishLatency,generationLatency,realOversampledPerWindow*sizeof(int),count*sizeof(int),strlen(payload));
                 
                 }
             }

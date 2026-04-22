@@ -1,6 +1,8 @@
 # IoT_IndividualProject
 The goal of the assignment is to create an IoT system that collects information from a sensor, analyses the data locally and communicates to a nearby server an aggregated value of the sensor readings. The IoT system adapts the sampling frequency in order to save energy and reduce communication overhead. The IoT device will be based on an ESP32 prototype board and the firmware will be developed using the FreeRTOS. You are free to use IoT-Lab or real devices.
 
+![Signal plot (from oversampling 1000hz to adaptive)](imgs/photo_individual.jpeg)
+
 ## Technical Details
 
 The project relies on a **FreeRTOS task-based architecture** running on an ESP32 (Heltec WiFi LoRa 32 V3). To ensure smooth compilation and avoid linker errors with hardware libraries, the code uses a "Unity Build" pattern, where tasks are separated in `.hpp` files and included in `main.cpp`.
@@ -103,6 +105,8 @@ The system is designed with precise microsecond-level profiling (micros()) to tr
     - In LoRa mode, a sendReceive architecture is implemented. The node requests a strict downlink response. The measured RTT successfully captures the physical Time-on-Air (ToA) of the uplink, combined with the protocol's mandatory RX1/RX2 receive windows (typically introducing a 1 to 2-second delay). This proves the FreeRTOS scheduler can handle massive latency disparities without halting the continuous background sampling of the sensors.
 
 ![Performance Report Table - LoRa case](imgs/peffomanceLORA.png)
+
+![Performance Report Table - LoRa case](imgs/peffomanceMQTT.png)
 
 
 ## Setup Guide

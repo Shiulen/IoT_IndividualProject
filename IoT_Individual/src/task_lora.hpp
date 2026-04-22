@@ -93,7 +93,7 @@ void TaskLora(void *pvParameters) {
             }
 
             // PRINT FOR PERFORMANCE
-            // printPerformanceReport(avg,cnt,mathTime,networkLatency,publishLatency,generationLatency,realOversampledPerWindow*sizeof(int),cnt*sizeof(int),sizeof(payload));
+            printPerformanceReport(avg,cnt,mathTime,networkLatency,publishLatency,generationLatency,realOversampledPerWindow*sizeof(int),cnt*sizeof(int),sizeof(payload));
         }else {
         Serial.println("[Task LoRa] No data to send or not connected to TTN.");
         }
