@@ -46,7 +46,7 @@ void TaskLora(void *pvParameters) {
 
 
     // COMMENTED FOR DEBUGGING PURPOSES, TO AVOID WAITING FOR THE DUTY CYCLE IN THE TESTS
-    node.setDutyCycle(true, 1250);
+    // node.setDutyCycle(true, 1250);
 
 
     node.setDutyCycle(false); 
