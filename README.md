@@ -66,12 +66,16 @@ A dedicated low-priority task (TaskDisplay) visualizes the data in real-time. It
 Instead of using Deep Sleep (which would clear the RAM and reset the FreeRTOS scheduler), energy efficiency is achieved through the RTOS Idle Task. By using vTaskDelayUntil() and semaphores (portMAX_DELAY), the CPU is yielded to the Idle state whenever tasks are waiting for data or timeouts.
 
 During a standard execution we can identify three phases:
-1. Oversampling -> The CPU gathers raw data and computes the FFT. Thanks to the ESP32's efficient FPU, mathematical operations are "cheap" and consume a baseline current (e.g., ~50-80 mA).
-2. Adaptive Sampling -> Once the FFT calculates the optimal lower frequency, the system enters an adaptive sampling phase. The CPU spends most of its time in the FreeRTOS Idle state, drastically lowering the average power consumption.
-3. Transmission phase -> Communicating the average of the signal over a window to a local server (MQTT) or cloud (LoRa) (up to +300mA mA).
+1. Oversampling -> The CPU continuously gathers raw data and computes the Fast Fourier Transform (FFT). Thanks to the ESP32-S3's efficient FPU (Floating-Point Unit), heavy mathematical operations consume only a standard baseline current of ~50-60 mA (approx. 250-300 mW).
+2. Adaptive Sampling -> Once the FFT calculates the optimal lower sampling frequency, the system dynamically scales down its reading rate. The CPU spends the majority of its time yielding to the FreeRTOS Idle state between samples, effectively keeping the power consumption flattened at the baseline without resetting the system.
+3. Transmission phase -> Communicating the aggregated signal to a local Node.js server (MQTT) or cloud infrastructure (LoRaWAN) causes massive energy spikes. The profiling data shows current jumping up to ~240 mA during Wi-Fi bursts, and power peaks reaching nearly 2000 mW (~400 mA) during heavy radio amplifier usage.
 
-# PLOT CONSUMPION HERE -----------
-![Energy Profiling Graph - Current and Power over time](imgs/energy_profiling.png)
+
+![Energy Profiling Graph - Current-Power-Voltge over time for LoRa](imgs/energy_profiling_LORA.png)
+
+![Energy Profiling Graph - Current-Power-Voltge over time for MQTT](imgs/energy_profiling_MQTT.png)
+
+![Energy Profiling Graph - Focus on current during MQTT](imgs/current_MQTT.png)
 
 
 
@@ -82,8 +86,7 @@ Instead of sending over-sampled data (e.g., 1000 Hz * 5 seconds = 12,000 samples
 - Protocol Specifics: In WiFi/MQTT mode, the data is sent as a lightweight Human-Readable JSON/String (approx. 15-20 Bytes).
 - In LoRaWAN mode, the payload is further compressed via strict Binary Packing into exactly 2 Bytes. This drastically reduces the Time-on-Air (ToA) of the LoRa modulation, minimizing packet collisions, complying with fair-use policies, and drastically lowering the radio power consumption.
 
-# PLOT DATA REDUCTION HERE -----------
-![Data Reduction Graph - Difference from sending](imgs/data_reduction.png)
+![Data Reduction Table - Difference from sending (LoRa case)](imgs/data_reduction.png)
 
 
 ### End-to-end Latency of the system
@@ -95,6 +98,9 @@ The system is designed with precise microsecond-level profiling (micros()) to tr
 - Asynchronous ACK Tracking:
     - In MQTT mode, the Edge node actively measures the Round-Trip Time (RTT) by listening for an ACK from an external Node.js Edge Server, proving sub-30ms delivery times while maintaining asynchronous, non-blocking execution.
     - In LoRa mode, a sendReceive architecture is implemented. The node requests a strict downlink response. The measured RTT successfully captures the physical Time-on-Air (ToA) of the uplink, combined with the protocol's mandatory RX1/RX2 receive windows (typically introducing a 1 to 2-second delay). This proves the FreeRTOS scheduler can handle massive latency disparities without halting the continuous background sampling of the sensors.
+
+![Performance Report Table - LoRa case](imgs/peffomanceLORA.png)
+
 
 ## Setup Guide
 ### Hardware Requirements
