@@ -14,7 +14,7 @@ void TaskLora(void *pvParameters) {
     // ======= ABP =======
     Serial.println("[Task LoRa] Activation (ABP)...");
 
-    state = node.beginABP(devAddr, NULL, NULL, nwkSKey, appSKey);
+    node.beginABP(devAddr, NULL, NULL, nwkSKey, appSKey);
     state=node.activateABP();
 
     if (state == RADIOLIB_ERR_NONE || state == RADIOLIB_LORAWAN_NEW_SESSION) {
@@ -46,7 +46,7 @@ void TaskLora(void *pvParameters) {
 
 
     // COMMENTED FOR DEBUGGING PURPOSES, TO AVOID WAITING FOR THE DUTY CYCLE IN THE TESTS
-    //node.setDutyCycle(true, 1250);
+    node.setDutyCycle(true, 1250);
 
 
     node.setDutyCycle(false); 
@@ -92,7 +92,8 @@ void TaskLora(void *pvParameters) {
                 Serial.printf("[Task LoRa] SEND ERROR: %d\n", state);
             }
 
-            printPerformanceReport(avg,cnt,mathTime,networkLatency,publishLatency,generationLatency,realOversampledPerWindow*sizeof(int),cnt*sizeof(int),sizeof(payload));
+            // PRINT FOR PERFORMANCE
+            // printPerformanceReport(avg,cnt,mathTime,networkLatency,publishLatency,generationLatency,realOversampledPerWindow*sizeof(int),cnt*sizeof(int),sizeof(payload));
         }else {
         Serial.println("[Task LoRa] No data to send or not connected to TTN.");
         }

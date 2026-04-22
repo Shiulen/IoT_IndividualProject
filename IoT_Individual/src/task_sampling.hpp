@@ -37,11 +37,20 @@ void TaskSampling(void *pvParameters) {
     
 
     int curPlot=sharedRawVal;
+    /*
     Serial.print('>');
     Serial.printf("Signal: %d", curPlot);
     Serial.print(',');
     Serial.printf("Avg: %.2f", avgPlot);
+    Serial.print(',');
+    Serial.printf("CurFreq: %.2f", currentFreq);
     Serial.println();
+    */
+   unsigned long t = micros() / 1000.0;
+    
+    Serial.printf(">Signal:%d\n", curPlot);
+    Serial.printf(">CurFreq:%.1f\n", currentFreq);
+
 
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS((int)(1000.0 / currentFreq)));
   }

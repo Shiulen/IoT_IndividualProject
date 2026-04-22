@@ -34,6 +34,9 @@ float recommendedFreq = f_max * 2.5;
 The new frequency is safely shared back to the sampling task using a Mutex (freqMutex).
 
 
+![Signal plot (from oversampling 1000hz to adaptive)](imgs/oversamp_to_adapt.png)
+
+
 ### Compute aggregate function over a window
 The aggregate function calculates the average of the ADC values over a tumbling window.
 In the TaskSampling, every read value is added to a global accumulator (windowSum) protected by windowMutex.

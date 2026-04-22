@@ -1,5 +1,8 @@
 #include "globals.h"
 
+// FOR 10sec of OVERSAMPLING
+// unsigned long taskStartTime = millis();
+
 void TaskFFT(void *pvParameters) {
   while (1) {
     if (xSemaphoreTake(xFFTReady, portMAX_DELAY) == pdTRUE) {
@@ -39,6 +42,14 @@ void TaskFFT(void *pvParameters) {
       if (recommendedFreq > MAX_SAMPLING_FREQ) {
           recommendedFreq = MAX_SAMPLING_FREQ;
       }
+
+      
+      // TO PLOT 
+      /*
+      if (millis() - taskStartTime < 10000) {
+          recommendedFreq = MAX_SAMPLING_FREQ; // Ignora la FFT e tienilo al massimo!
+      }
+      */
 
       Serial.printf("Detected Max Freq: %.2f Hz | Suggested Fs: %.2f Hz | Applied Fs: %.2f Hz\n", f_max, f_max * 2.5, recommendedFreq);
 

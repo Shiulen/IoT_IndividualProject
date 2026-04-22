@@ -19,7 +19,7 @@
 uint32_t devAddr=0x260B121E;
 uint8_t appSKey[16]={0x93, 0x56, 0xFE, 0xF3, 0x5C, 0xF8, 0x5C, 0x2A, 0x35, 0x1E, 0x4F, 0x33, 0x55, 0xCF, 0xF0, 0x85};
 uint8_t nwkSKey[16]={0x3C, 0x94, 0x56, 0x68, 0x36, 0x94, 0x8E, 0xD8, 0xBA, 0x05, 0x9C, 0xCC, 0x09, 0x0E, 0xF0, 0xCF};
-bool useLoraMode = false; // true = LoRaWAN, false = WiFi/MQTT
+bool useLoraMode = true; // true = LoRaWAN, false = WiFi/MQTT
 
 // ======= GLOBAL VARIABLES =======
 const int sensorPin = 1; // GPIO1 (ADC)
@@ -76,6 +76,7 @@ void setup() {
     
     // ======= OVERSAMPLING CALIBRATION =======
     // to retrive data for comparison
+    /*
     Serial.println("\n--- OVERSAMPLING CALIBRATION (10 SEC) ---");
     display.clear();
     display.drawString(0, 0, "Fs:" + String(currentSamplingFrequency, 2) + " Hz");
@@ -101,7 +102,7 @@ void setup() {
     Serial.println("Calibrazione completata!");
     Serial.printf("Campioni reali letti in 10s: %ld\n", totalSamplesIn10s);
     Serial.printf("Baseline reale per finestra (3s): %d campioni\n\n", realOversampledPerWindow);
-
+    */
     // buffer intialization for FFT processing
     procReal = vReal0; procImag = vImag0;
     fftReal = vReal1;  fftImag = vImag1;
