@@ -1,7 +1,6 @@
 #include "globals.h"
 
 void TaskFFT(void *pvParameters) {
-  Serial.println("[Task FFT] In attesa di dati...");
   while (1) {
     if (xSemaphoreTake(xFFTReady, portMAX_DELAY) == pdTRUE) {
       

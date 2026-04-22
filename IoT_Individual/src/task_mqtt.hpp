@@ -45,6 +45,14 @@ void TaskMQTT(void *pvParameters) {
                 Serial.println("CONNECTING TO MQTT BROKER...");
                 if(client.connect("ESP32Client")) {
                     client.subscribe("server/ack");
+
+                    /* PRINT FOR ANALYSIS
+                    static bool test = false;
+                    if(!test){
+                        runBandwidthStressTest();
+                        test=true;
+                    }
+                    */
                 }
             }
 
@@ -82,7 +90,8 @@ void TaskMQTT(void *pvParameters) {
                     unsigned long publishLatency = endNetwork - startMath;
                     unsigned long generationLatency = endNetwork - startFromHere;
 
-                    printPerformanceReport(average,count,mathTime,NetworkLatency,publishLatency,generationLatency,realOversampledPerWindow*sizeof(int),count*sizeof(int),strlen(payload));
+                    // PRINT FOR PERFORMANCE
+                    // printPerformanceReport(average,count,mathTime,NetworkLatency,publishLatency,generationLatency,realOversampledPerWindow*sizeof(int),count*sizeof(int),strlen(payload));
                 
                 }
             }

@@ -63,3 +63,73 @@ void printPerformanceReport(float average, int count,
     
     Serial.println("\n=============================================================\n");
 }
+
+void runBandwidthStressTest() {
+    Serial.println("\n=============================================================");
+    Serial.println("           AVVIO STRESS TEST TRASMISSIONE DATI MQTT          ");
+    Serial.println("=============================================================");
+
+    // Creiamo un pacchetto dummy da 200 Byte (il limite di sicurezza per PubSubClient)
+    char chunk[200];
+    memset(chunk, 'A', 199); // Riempe di lettere 'A'
+    chunk[199] = '\0';       // Terminatore stringa
+
+    // Creiamo il pacchetto intelligente da 16 Byte
+    char smartPayload[20] = "Average: 1850.50";
+
+    // Assicuriamoci che MQTT sia connesso prima di testare
+    if (!client.connected()) {
+        Serial.println("Errore: MQTT non connesso. Impossibile fare il test.");
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // TEST 1: PAYLOAD EDGE COMPUTING (16 Byte)
+    // ---------------------------------------------------------
+    Serial.println("[TEST 1] Invio Payload Aggregato (16 Byte)...");
+    unsigned long startPayload = micros();
+    
+    client.publish("esp32/stresstest", smartPayload);
+    
+    unsigned long timePayload = micros() - startPayload;
+    Serial.printf("-> Tempo impiegato: %lu us (%.2f ms)\n\n", timePayload, timePayload/1000.0);
+    delay(500); // Pausa per far respirare il router
+
+    // ---------------------------------------------------------
+    // TEST 2: ADAPTIVE SAMPLING (es. 400 Byte)
+    // Richiede 2 invii da 200 Byte
+    // ---------------------------------------------------------
+    Serial.println("[TEST 2] Invio Adaptive Sampling (400 Byte in 2 pacchetti)...");
+    unsigned long startAdaptive = micros();
+    
+    for(int i = 0; i < 2; i++) {
+        client.publish("esp32/stresstest", chunk);
+    }
+    
+    unsigned long timeAdaptive = micros() - startAdaptive;
+    Serial.printf("-> Tempo impiegato: %lu us (%.2f ms)\n\n", timeAdaptive, timeAdaptive/1000.0);
+    delay(500);
+
+    // ---------------------------------------------------------
+    // TEST 3: OVERSAMPLED RAW DATA (12000 Byte)
+    // Richiede 60 invii continui da 200 Byte
+    // ---------------------------------------------------------
+    Serial.println("[TEST 3] Invio Dati Grezzi Oversampled (12000 Byte in 60 pacchetti)...");
+    unsigned long startRaw = micros();
+    
+    for(int i = 0; i < 60; i++) {
+        client.publish("esp32/stresstest", chunk);
+        
+        // È fondamentale chiamare il loop e inserire un micro-delay, 
+        // altrimenti il buffer del chip WiFi si satura e il router ci disconnette (DDoS locale!)
+        client.loop(); 
+        delay(2); 
+    }
+    
+    unsigned long timeRaw = micros() - startRaw;
+    Serial.printf("-> Tempo impiegato: %lu us (%.2f ms)\n\n", timeRaw, timeRaw/1000.0);
+
+    Serial.println("=============================================================");
+    Serial.println("                 STRESS TEST COMPLETATO                      ");
+    Serial.println("=============================================================\n");
+}
